@@ -1,0 +1,3 @@
+# Qualcomm 9008 (QUSB_BULK) — 让当前登录用户直接读写 /dev/ttyUSB*
+SUBSYSTEM=="usb", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", MODE="0666", TAG+="uaccess"

@@ -1,0 +1,76 @@
+--- /tmp/lf/fh_loader-master/fh_loader/fh_loader.cpp	2018-12-09 08:57:02.000000000 +0800
++++ third_party/fh_loader-src/fh_loader.cpp	2026-11-07 21:37:41.804411862 +0800
+@@ -91,7 +91,11 @@
+ #include "platform.h"
+ 
+ #define ZLPAWAREHOST 1
++#ifdef _WIN32
+ #define SLASH '\\'    // defined differently below for LINUX
++#else
++#define SLASH '/'
++#endif
+ #define WRONGSLASH '/'
+ 
+ #define SIZE_T long long int
+@@ -146,7 +150,7 @@
+ "notfiles=", "nop", "noprompt", "noreset", "num_sectors=", "port=", "porttracename=",
+ "readbogusdata", "reset",
+ "search_path=", "sectorsizeinbytes=", "sendimage=", "sendxml=", "setactivepartition=",
+-"showdigestperpacket", "showdigestperfile", "showpercentagecomplete", "signeddigests=", "simulate", "skipharddriveread",
++"showdigestperpacket", "showdigestperfile", "showpercentagecomplete", "signeddigests=", "simulate", "skipharddriveread", "skip_configure", "special_rw_mode=",
+ "skippatch", "skipwrite", "skipstorageinit", "start_sector=", "stresstest", "testvipimpact", "trials=",
+ "wipefirst", "verbose", "verify_build", "verify_programming",
+ "zlpawarehost="
+@@ -454,6 +458,8 @@
+ 
+ char RawMode = 0; // 0 means XML files from target, 1 means RAW packets as in a <read> command
+ char testvipimpact = 0;
++int  g_skip_configure = 0;
++char g_special_rw_mode[64] = "";
+ 
+ #define FIREHOSE_TX_BUFFER_SIZE (ONE_MEGABYTE)
+ char tx_buffer[FIREHOSE_TX_BUFFER_SIZE];
+@@ -3428,6 +3434,16 @@
+ 		{
+ 			dbg(LOG_DEBUG, "User wants testvipimpact\n");
+ 			testvipimpact = 1;
++		}
++		else if (strncmp(MyOpt, "skip_configure", MAX(strlen(MyOpt), strlen("skip_configure"))) == 0)
++		{
++			g_skip_configure = 1;
++			dbg(LOG_INFO, "User wants skip_configure\n");
++		}
++		else if (strncmp(MyOpt, "special_rw_mode=", MAX(strlen(MyOpt), strlen("special_rw_mode="))) == 0)
++		{
++			strncpy(g_special_rw_mode, MyArg, sizeof(g_special_rw_mode)-1);
++			dbg(LOG_INFO, "User wants special_rw_mode=%s\n", g_special_rw_mode);
+ 			continue;
+ 		}
+ 		else if (strncmp(MyOpt, "simulate", MAX(strlen(MyOpt), strlen("simulate"))) == 0)
+@@ -6458,6 +6474,9 @@
+ 
+ 		// to be this far means we don't agree on payload size yet
+ 		fh.attrs.MaxPayloadSizeToTargetInBytes = fh.attrs.MaxPayloadSizeToTargetInBytesSupported;
++		if (g_skip_configure || getenv("FH_SKIP_CONFIGURE"))
++		dbg(LOG_INFO, "Skipping <configure> because FH_SKIP_CONFIGURE is set\n");
++	else
+ 		LoadConfigureIntoTXBuffer();
+ 
+ 	} while (1);  // end do
+@@ -7234,6 +7253,16 @@
+ 	sprintf(temp_buffer, "MemoryName=\"%s\" ", fh.attrs.MemoryName);
+ 	AppendToBuffer(tx_buffer, temp_buffer, FIREHOSE_TX_BUFFER_SIZE);
+ 
++	// === OPPO/vendor 扩展：由环境变量注入 configure 属性 ===
++	{
++		const char *mt = getenv("FH_MODETYPE");
++		if (mt && mt[0]) { snprintf(temp_buffer, sizeof(temp_buffer), "ModeType=\"%s\" ", mt); AppendToBuffer(tx_buffer, temp_buffer, FIREHOSE_TX_BUFFER_SIZE); }
++		if (getenv("FH_ENABLEFLASH")) AppendToBuffer(tx_buffer, "EnableFlash=\"1\" ", FIREHOSE_TX_BUFFER_SIZE);
++		if (getenv("FH_ENABLEVIP")) AppendToBuffer(tx_buffer, "EnableVip=\"1\" ", FIREHOSE_TX_BUFFER_SIZE);
++		const char *rw = g_special_rw_mode[0] ? g_special_rw_mode : getenv("FH_SPECIAL_RW");
++		if (rw && rw[0]) { snprintf(temp_buffer, sizeof(temp_buffer), "SpecialRwMode=\"%s\" ", rw); AppendToBuffer(tx_buffer, temp_buffer, FIREHOSE_TX_BUFFER_SIZE); }
++	}
++
+ 	if (Verbose)
+ 		AppendToBuffer(tx_buffer, "Verbose=\"1\" ", FIREHOSE_TX_BUFFER_SIZE);
+ 	else

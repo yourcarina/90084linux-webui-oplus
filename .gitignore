@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+data/profiles/*.json
+data/runs/
+web/node_modules/
+web/dist/
+port_trace.txt
